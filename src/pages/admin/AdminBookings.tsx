@@ -136,10 +136,48 @@ export default function AdminBookings() {
         </CardContent>
       </Card>
 
-      {/* Bookings Table */}
+      {/* Bookings List - Mobile responsive */}
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          {/* Mobile view - Cards */}
+          <div className="block sm:hidden divide-y">
+            {bookings.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground">
+                No bookings found
+              </div>
+            ) : (
+              bookings.map((booking) => (
+                <div 
+                  key={booking.id} 
+                  className="p-4 space-y-3 touch-manipulation active:bg-muted/30"
+                  onClick={() => setSelectedBooking(booking)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-mono text-sm font-medium">{booking.bookingCode}</p>
+                      <p className="text-sm text-muted-foreground">{booking.guest?.name}</p>
+                    </div>
+                    <StatusBadge status={booking.status} type="booking" />
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Room {booking.room?.number}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(booking.checkIn), 'MMM d')} - {format(new Date(booking.checkOut), 'MMM d')}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold">₹{booking.totalAmount.toLocaleString()}</p>
+                      <StatusBadge status={booking.paymentStatus} type="payment" />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop view - Table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b bg-muted/50">
@@ -214,10 +252,10 @@ export default function AdminBookings() {
 
       {/* Booking Details Dialog */}
       <Dialog open={!!selectedBooking && !cancelDialogOpen} onOpenChange={() => setSelectedBooking(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-4 sm:mx-auto">
           <DialogHeader>
-            <DialogTitle>Booking Details</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg">Booking Details</DialogTitle>
+            <DialogDescription className="font-mono">
               {selectedBooking?.bookingCode}
             </DialogDescription>
           </DialogHeader>
@@ -226,11 +264,11 @@ export default function AdminBookings() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Status</p>
+                  <p className="text-sm text-muted-foreground mb-1">Status</p>
                   <StatusBadge status={selectedBooking.status} type="booking" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Payment</p>
+                  <p className="text-sm text-muted-foreground mb-1">Payment</p>
                   <StatusBadge status={selectedBooking.paymentStatus} type="payment" />
                 </div>
               </div>
@@ -264,12 +302,12 @@ export default function AdminBookings() {
             </div>
           )}
 
-          <DialogFooter className="flex-wrap gap-2">
+          <DialogFooter className="flex-col sm:flex-row gap-2 pt-4">
             {selectedBooking?.status === 'CONFIRMED' && (
               <Button
                 onClick={() => updateStatus(selectedBooking.id, 'CHECKED_IN')}
                 disabled={actionLoading}
-                className="bg-success hover:bg-success/90"
+                className="w-full sm:w-auto bg-success hover:bg-success/90 h-12 sm:h-10"
               >
                 {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4 mr-2" />}
                 Check In
@@ -280,6 +318,7 @@ export default function AdminBookings() {
                 onClick={() => updateStatus(selectedBooking.id, 'CHECKED_OUT')}
                 disabled={actionLoading}
                 variant="secondary"
+                className="w-full sm:w-auto h-12 sm:h-10"
               >
                 {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4 mr-2" />}
                 Check Out
@@ -290,6 +329,7 @@ export default function AdminBookings() {
                 variant="destructive"
                 onClick={() => setCancelDialogOpen(true)}
                 disabled={actionLoading}
+                className="w-full sm:w-auto h-12 sm:h-10"
               >
                 <XCircle className="h-4 w-4 mr-2" />
                 Cancel Booking
