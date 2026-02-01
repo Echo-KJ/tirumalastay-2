@@ -28,7 +28,7 @@ export function CTASection() {
             <Button 
               size="lg" 
               variant="outline" 
-              className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
+              className="border-2 border-white bg-white/10 text-white hover:bg-white/20 font-semibold"
               asChild
             >
               <a href="tel:+919876543210">
