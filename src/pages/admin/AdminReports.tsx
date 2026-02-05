@@ -1,14 +1,32 @@
-import { useState, useEffect } from 'react';
+// ============================================
+// ADMIN REPORTS PAGE
+// Register-style reports with KPIs
+// ============================================
+
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, TrendingUp, IndianRupee, Users, BedDouble } from 'lucide-react';
-import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { 
+  CalendarIcon, 
+  TrendingUp, 
+  IndianRupee, 
+  Users, 
+  BedDouble,
+  Download,
+  Printer,
+  ArrowUpRight,
+  ArrowDownRight,
+} from 'lucide-react';
+import { format, subDays, startOfMonth, endOfMonth, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { reportsApi } from '@/services/api';
 import { DailyReport } from '@/types';
 import { PageLoader } from '@/components/ui/LoadingSpinner';
+import { PageHeader } from '@/components/admin/ui/PageHeader';
+import { MetricCard } from '@/components/admin/ui/MetricCard';
+import { formatCurrency, hotelConfig } from '@/config/hotel';
 
 export default function AdminReports() {
   const [loading, setLoading] = useState(true);
@@ -42,34 +60,73 @@ export default function AdminReports() {
 
   const quickRanges = [
     { label: 'Today', from: new Date(), to: new Date() },
-    { label: 'Last 7 days', from: subDays(new Date(), 7), to: new Date() },
-    { label: 'Last 30 days', from: subDays(new Date(), 30), to: new Date() },
+    { label: '7 Days', from: subDays(new Date(), 7), to: new Date() },
+    { label: '30 Days', from: subDays(new Date(), 30), to: new Date() },
     { label: 'This Month', from: startOfMonth(new Date()), to: endOfMonth(new Date()) },
   ];
+
+  // Calculate additional KPIs
+  const days = Math.max(1, differenceInDays(dateTo, dateFrom) + 1);
+  const adr = totals.totalCheckins > 0 ? totals.totalRevenue / totals.totalCheckins : 0;
+  const revpar = (totals.totalRevenue / days) / hotelConfig.totalRooms;
+
+  // Export to CSV
+  const exportToCSV = () => {
+    const headers = ['Date', 'Bookings', 'Check-ins', 'Check-outs', 'Cash', 'UPI', 'Card', 'Online', 'Occupancy %'];
+    const rows = reports.map(r => [
+      format(new Date(r.date), 'yyyy-MM-dd'),
+      r.totalBookings,
+      r.totalCheckins,
+      r.totalCheckouts,
+      r.totalRevenueCash,
+      r.totalRevenueUPI,
+      r.totalRevenueCard,
+      r.totalRevenueOnline,
+      r.occupancyRate,
+    ]);
+    
+    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `report_${format(dateFrom, 'yyyyMMdd')}_${format(dateTo, 'yyyyMMdd')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   if (loading) return <PageLoader />;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-bold">Reports</h1>
-          <p className="text-muted-foreground">
-            View occupancy and revenue statistics
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Reports"
+        subtitle={`${format(dateFrom, 'MMM d')} - ${format(dateTo, 'MMM d, yyyy')}`}
+        onRefresh={loadReports}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={exportToCSV}>
+              <Download className="h-4 w-4 mr-2" />
+              CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Printer className="h-4 w-4 mr-2" />
+              Print
+            </Button>
+          </div>
+        }
+      />
 
       {/* Date Range Picker */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-center gap-4">
+        <CardContent className="p-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">From:</span>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn('justify-start text-left font-normal w-40')}>
+                  <Button variant="outline" size="sm" className="w-36">
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {format(dateFrom, 'MMM d, yyyy')}
                   </Button>
@@ -89,7 +146,7 @@ export default function AdminReports() {
               <span className="text-sm text-muted-foreground">To:</span>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn('justify-start text-left font-normal w-40')}>
+                  <Button variant="outline" size="sm" className="w-36">
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {format(dateTo, 'MMM d, yyyy')}
                   </Button>
@@ -105,7 +162,7 @@ export default function AdminReports() {
               </Popover>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1 ml-auto">
               {quickRanges.map((range) => (
                 <Button
                   key={range.label}
@@ -115,6 +172,7 @@ export default function AdminReports() {
                     setDateFrom(range.from);
                     setDateTo(range.to);
                   }}
+                  className="text-xs h-7 px-2"
                 >
                   {range.label}
                 </Button>
@@ -124,156 +182,147 @@ export default function AdminReports() {
         </CardContent>
       </Card>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Bookings</p>
-                <p className="text-3xl font-display font-bold">{totals.totalBookings}</p>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <CalendarIcon className="h-5 w-5 text-primary" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Check-ins</p>
-                <p className="text-3xl font-display font-bold">{totals.totalCheckins}</p>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
-                <Users className="h-5 w-5 text-success" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Check-outs</p>
-                <p className="text-3xl font-display font-bold">{totals.totalCheckouts}</p>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center">
-                <Users className="h-5 w-5 text-warning" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Revenue</p>
-                <p className="text-3xl font-display font-bold">
-                  ₹{totals.totalRevenue.toLocaleString()}
-                </p>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-hotel-gold/20 flex items-center justify-center">
-                <IndianRupee className="h-5 w-5 text-hotel-gold" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Avg Occupancy</p>
-                <p className="text-3xl font-display font-bold">
-                  {totals.avgOccupancy.toFixed(1)}%
-                </p>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-info/10 flex items-center justify-center">
-                <BedDouble className="h-5 w-5 text-info" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <MetricCard
+          title="Total Bookings"
+          value={totals.totalBookings}
+          icon={<CalendarIcon className="h-5 w-5 text-primary" />}
+          iconBg="bg-primary/10"
+        />
+        <MetricCard
+          title="Check-ins"
+          value={totals.totalCheckins}
+          icon={<Users className="h-5 w-5 text-success" />}
+          iconBg="bg-success/10"
+        />
+        <MetricCard
+          title="Check-outs"
+          value={totals.totalCheckouts}
+          icon={<Users className="h-5 w-5 text-warning" />}
+          iconBg="bg-warning/10"
+        />
+        <MetricCard
+          title="Total Revenue"
+          value={formatCurrency(totals.totalRevenue)}
+          icon={<IndianRupee className="h-5 w-5 text-hotel-gold" />}
+          iconBg="bg-hotel-gold/20"
+        />
+        <MetricCard
+          title="Avg Occupancy"
+          value={`${totals.avgOccupancy.toFixed(0)}%`}
+          icon={<BedDouble className="h-5 w-5 text-info" />}
+          iconBg="bg-info/10"
+        />
+        <MetricCard
+          title="ADR"
+          value={formatCurrency(adr)}
+          subtitle="Avg Daily Rate"
+          icon={<TrendingUp className="h-5 w-5 text-primary" />}
+          iconBg="bg-primary/10"
+        />
       </div>
+
+      {/* RevPAR Card */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Revenue Per Available Room (RevPAR)</p>
+              <p className="text-3xl font-display font-bold">{formatCurrency(revpar)}</p>
+            </div>
+            <div className="flex gap-6 text-sm">
+              <div>
+                <p className="text-muted-foreground">Days in period</p>
+                <p className="font-medium">{days}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Total rooms</p>
+                <p className="font-medium">{hotelConfig.totalRooms}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Room nights available</p>
+                <p className="font-medium">{days * hotelConfig.totalRooms}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Daily Reports Table */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
+        <CardHeader className="pb-2 pt-4">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
             Daily Breakdown
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {reports.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
-              No reports available for the selected date range
+              No data available for the selected period
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
                     <th className="text-left p-3 font-medium text-muted-foreground">Date</th>
                     <th className="text-right p-3 font-medium text-muted-foreground">Bookings</th>
-                    <th className="text-right p-3 font-medium text-muted-foreground">Check-ins</th>
-                    <th className="text-right p-3 font-medium text-muted-foreground">Check-outs</th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">In</th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">Out</th>
                     <th className="text-right p-3 font-medium text-muted-foreground">Cash</th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">UPI</th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">Card</th>
                     <th className="text-right p-3 font-medium text-muted-foreground">Online</th>
-                    <th className="text-right p-3 font-medium text-muted-foreground">Occupancy</th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">Occ %</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {reports.map((report) => (
-                    <tr key={report.date.toString()} className="hover:bg-muted/30">
-                      <td className="p-3 font-medium">
-                        {format(new Date(report.date), 'EEE, MMM d')}
-                      </td>
-                      <td className="p-3 text-right">{report.totalBookings}</td>
-                      <td className="p-3 text-right text-success">{report.totalCheckins}</td>
-                      <td className="p-3 text-right text-warning">{report.totalCheckouts}</td>
-                      <td className="p-3 text-right">₹{report.totalRevenueCash.toLocaleString()}</td>
-                      <td className="p-3 text-right">₹{report.totalRevenueOnline.toLocaleString()}</td>
-                      <td className="p-3 text-right">
-                        <span className={cn(
-                          'font-medium',
-                          report.occupancyRate >= 70 && 'text-success',
-                          report.occupancyRate >= 40 && report.occupancyRate < 70 && 'text-warning',
-                          report.occupancyRate < 40 && 'text-muted-foreground'
-                        )}>
-                          {report.occupancyRate}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {reports.map((report) => {
+                    const totalDayRevenue = report.totalRevenueCash + report.totalRevenueUPI + 
+                      report.totalRevenueCard + report.totalRevenueOnline;
+                    return (
+                      <tr key={report.date.toString()} className="hover:bg-muted/30">
+                        <td className="p-3 font-medium">
+                          {format(new Date(report.date), 'EEE, MMM d')}
+                        </td>
+                        <td className="p-3 text-right">{report.totalBookings}</td>
+                        <td className="p-3 text-right text-success">{report.totalCheckins}</td>
+                        <td className="p-3 text-right text-warning">{report.totalCheckouts}</td>
+                        <td className="p-3 text-right">{formatCurrency(report.totalRevenueCash)}</td>
+                        <td className="p-3 text-right">{formatCurrency(report.totalRevenueUPI)}</td>
+                        <td className="p-3 text-right">{formatCurrency(report.totalRevenueCard)}</td>
+                        <td className="p-3 text-right">{formatCurrency(report.totalRevenueOnline)}</td>
+                        <td className="p-3 text-right">
+                          <span className={cn(
+                            'font-medium',
+                            report.occupancyRate >= 70 && 'text-success',
+                            report.occupancyRate >= 40 && report.occupancyRate < 70 && 'text-warning',
+                            report.occupancyRate < 40 && 'text-muted-foreground'
+                          )}>
+                            {report.occupancyRate}%
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
+                <tfoot>
+                  <tr className="bg-muted/50 font-medium">
+                    <td className="p-3">Total</td>
+                    <td className="p-3 text-right">{totals.totalBookings}</td>
+                    <td className="p-3 text-right text-success">{totals.totalCheckins}</td>
+                    <td className="p-3 text-right text-warning">{totals.totalCheckouts}</td>
+                    <td className="p-3 text-right" colSpan={4}>
+                      {formatCurrency(totals.totalRevenue)}
+                    </td>
+                    <td className="p-3 text-right">{totals.avgOccupancy.toFixed(0)}%</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Export Options */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">
-              Export report data for the selected date range
-            </p>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => window.print()}>
-                Print Report
-              </Button>
-              <Button variant="outline" disabled>
-                Export CSV (Coming Soon)
-              </Button>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

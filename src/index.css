@@ -259,3 +259,62 @@
     scrollbar-width: none;
   }
 }
+
+/* ============================================
+   PRINT STYLES FOR INVOICE
+   ============================================ */
+@media print {
+  /* Hide everything except invoice */
+  body * {
+    visibility: hidden;
+  }
+  
+  .invoice-print,
+  .invoice-print * {
+    visibility: visible;
+  }
+  
+  .invoice-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 210mm;
+    padding: 10mm;
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  /* Hide non-print elements */
+  .no-print {
+    display: none !important;
+  }
+  
+  /* Force page breaks */
+  .page-break {
+    page-break-before: always;
+  }
+  
+  /* Ensure tables don't break awkwardly */
+  table {
+    page-break-inside: avoid;
+  }
+  
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  
+  /* Remove shadows and transitions */
+  * {
+    box-shadow: none !important;
+    transition: none !important;
+  }
+  
+  /* Ensure borders print properly */
+  .border,
+  .border-b,
+  .border-t {
+    border-color: #000 !important;
+  }
+}
