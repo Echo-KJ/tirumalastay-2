@@ -1,6 +1,13 @@
+// ============================================
+// ROOMS MANAGEMENT PAGE
+// Clean room status grid with guest info
+// ============================================
+
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Dialog,
@@ -10,29 +17,65 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { BedDouble, Users, Loader2 } from 'lucide-react';
+import { BedDouble, Users, Loader2, Search, Filter, CheckCircle, Wrench, SprayCanIcon } from 'lucide-react';
+import { format } from 'date-fns';
 import { roomsApi } from '@/services/api';
-import { Room, RoomType, RoomStatus } from '@/types';
+import { Room, RoomType, RoomStatus, Booking, Guest } from '@/types';
 import { PageLoader } from '@/components/ui/LoadingSpinner';
-import { StatusBadge } from '@/components/ui/StatusBadge';
+import { PageHeader } from '@/components/admin/ui/PageHeader';
+import { MetricCardCompact } from '@/components/admin/ui/MetricCard';
+import { StatusBadge, RoomStatusDot } from '@/components/admin/ui/StatusBadge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { store } from '@/services/store';
+import { mockRoomTypes } from '@/services/mockData';
+
+type RoomWithBooking = Room & { 
+  type: RoomType; 
+  currentBooking?: Booking & { guest: Guest };
+};
 
 export default function AdminRooms() {
-  const [rooms, setRooms] = useState<(Room & { type: RoomType })[]>([]);
+  const [rooms, setRooms] = useState<RoomWithBooking[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedRoom, setSelectedRoom] = useState<(Room & { type: RoomType }) | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<RoomWithBooking | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<RoomStatus | 'ALL'>('ALL');
+  const [typeFilter, setTypeFilter] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const navigate = useNavigate();
 
   const loadData = async () => {
     try {
-      const [roomsData, typesData] = await Promise.all([
-        roomsApi.getRooms(),
-        roomsApi.getRoomTypes(),
-      ]);
-      setRooms(roomsData);
-      setRoomTypes(typesData);
+      // Get rooms from store
+      const roomsData = store.getRooms();
+      const bookings = store.getBookings();
+      const guests = store.getGuests();
+      
+      // Enrich rooms with type and current booking info
+      const enrichedRooms: RoomWithBooking[] = roomsData.map(room => {
+        const type = mockRoomTypes.find(t => t.id === room.typeId)!;
+        
+        // Find current in-house booking for this room
+        const currentBooking = bookings.find(b => 
+          b.roomId === room.id && 
+          (b.status === 'IN_HOUSE' || b.status === 'CHECKED_IN')
+        );
+        
+        let bookingWithGuest: (Booking & { guest: Guest }) | undefined;
+        if (currentBooking) {
+          const guest = guests.find(g => g.id === currentBooking.guestId);
+          if (guest) {
+            bookingWithGuest = { ...currentBooking, guest };
+          }
+        }
+        
+        return { ...room, type, currentBooking: bookingWithGuest };
+      });
+
+      setRooms(enrichedRooms);
+      setRoomTypes(mockRoomTypes);
     } catch (error) {
       console.error('Failed to load rooms:', error);
       toast.error('Failed to load rooms');
@@ -49,7 +92,7 @@ export default function AdminRooms() {
     setActionLoading(true);
     try {
       await roomsApi.updateRoomStatus(roomId, status);
-      toast.success('Room status updated');
+      toast.success(`Room marked as ${status.toLowerCase()}`);
       loadData();
       setSelectedRoom(null);
     } catch (error) {
@@ -59,11 +102,26 @@ export default function AdminRooms() {
     }
   };
 
+  // Filter rooms
+  const filteredRooms = rooms.filter(room => {
+    if (statusFilter !== 'ALL' && room.status !== statusFilter) return false;
+    if (typeFilter !== 'ALL' && room.typeId !== typeFilter) return false;
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchRoom = room.number.toLowerCase().includes(query);
+      const matchGuest = room.currentBooking?.guest?.name?.toLowerCase().includes(query);
+      if (!matchRoom && !matchGuest) return false;
+    }
+    return true;
+  });
+
+  // Group by type
   const groupedRooms = roomTypes.map(type => ({
     type,
-    rooms: rooms.filter(r => r.typeId === type.id),
-  }));
+    rooms: filteredRooms.filter(r => r.typeId === type.id),
+  })).filter(g => g.rooms.length > 0);
 
+  // Status counts
   const statusCounts = {
     AVAILABLE: rooms.filter(r => r.status === 'AVAILABLE').length,
     OCCUPIED: rooms.filter(r => r.status === 'OCCUPIED').length,
@@ -74,120 +132,197 @@ export default function AdminRooms() {
   if (loading) return <PageLoader />;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div>
-        <h1 className="font-display text-3xl font-bold">Rooms</h1>
-        <p className="text-muted-foreground">
-          Manage room status and availability
-        </p>
-      </div>
+      <PageHeader
+        title="Rooms"
+        subtitle={`${statusCounts.AVAILABLE} available of ${rooms.length} total`}
+        onRefresh={loadData}
+      />
 
       {/* Status Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-success">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Available</p>
-            <p className="text-2xl font-bold text-success">{statusCounts.AVAILABLE}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-destructive">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Occupied</p>
-            <p className="text-2xl font-bold text-destructive">{statusCounts.OCCUPIED}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-warning">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Cleaning</p>
-            <p className="text-2xl font-bold text-warning">{statusCounts.CLEANING}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-muted-foreground">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Maintenance</p>
-            <p className="text-2xl font-bold">{statusCounts.MAINTENANCE}</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <MetricCardCompact
+          title="Available"
+          value={statusCounts.AVAILABLE}
+          icon={<CheckCircle className="h-4 w-4 text-success" />}
+          iconBg="bg-success/10"
+          className="border-l-4 border-l-success"
+        />
+        <MetricCardCompact
+          title="Occupied"
+          value={statusCounts.OCCUPIED}
+          icon={<Users className="h-4 w-4 text-destructive" />}
+          iconBg="bg-destructive/10"
+          className="border-l-4 border-l-destructive"
+        />
+        <MetricCardCompact
+          title="Cleaning"
+          value={statusCounts.CLEANING}
+          icon={<SprayCanIcon className="h-4 w-4 text-warning" />}
+          iconBg="bg-warning/10"
+          className="border-l-4 border-l-warning"
+        />
+        <MetricCardCompact
+          title="Maintenance"
+          value={statusCounts.MAINTENANCE}
+          icon={<Wrench className="h-4 w-4 text-muted-foreground" />}
+          iconBg="bg-muted"
+          className="border-l-4 border-l-muted-foreground"
+        />
       </div>
 
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search room number or guest..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as RoomStatus | 'ALL')}>
+              <SelectTrigger className="w-full sm:w-36">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Status</SelectItem>
+                <SelectItem value="AVAILABLE">Available</SelectItem>
+                <SelectItem value="OCCUPIED">Occupied</SelectItem>
+                <SelectItem value="CLEANING">Cleaning</SelectItem>
+                <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Room Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Types</SelectItem>
+                {roomTypes.map(type => (
+                  <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Rooms by Type */}
-      {groupedRooms.map(({ type, rooms: typeRooms }) => (
-        <Card key={type.id}>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg overflow-hidden">
-                  <img src={type.images[0]} alt={type.name} className="w-full h-full object-cover" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg">{type.name}</CardTitle>
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <Users className="h-3 w-3" />
-                    Up to {type.capacity} guests • ₹{type.basePrice}/night
-                  </p>
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {typeRooms.length} room{typeRooms.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {typeRooms.map((room) => (
-                <button
-                  key={room.id}
-                  onClick={() => setSelectedRoom(room)}
-                  className={cn(
-                    'p-4 rounded-lg border text-center transition-all hover:shadow-md',
-                    room.status === 'AVAILABLE' && 'bg-success/5 border-success/30 hover:border-success',
-                    room.status === 'OCCUPIED' && 'bg-destructive/5 border-destructive/30 hover:border-destructive',
-                    room.status === 'CLEANING' && 'bg-warning/5 border-warning/30 hover:border-warning',
-                    room.status === 'MAINTENANCE' && 'bg-muted border-muted-foreground/30'
-                  )}
-                >
-                  <BedDouble className={cn(
-                    'h-6 w-6 mx-auto mb-2',
-                    room.status === 'AVAILABLE' && 'text-success',
-                    room.status === 'OCCUPIED' && 'text-destructive',
-                    room.status === 'CLEANING' && 'text-warning',
-                    room.status === 'MAINTENANCE' && 'text-muted-foreground'
-                  )} />
-                  <p className="font-semibold">{room.number}</p>
-                  <p className="text-xs text-muted-foreground capitalize mt-1">
-                    {room.status.toLowerCase()}
-                  </p>
-                </button>
-              ))}
-            </div>
+      {groupedRooms.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center text-muted-foreground">
+            No rooms match your filters
           </CardContent>
         </Card>
-      ))}
+      ) : (
+        groupedRooms.map(({ type, rooms: typeRooms }) => (
+          <Card key={type.id}>
+            <CardHeader className="pb-3 pt-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <CardTitle className="text-base">{type.name}</CardTitle>
+                  <span className="text-sm text-muted-foreground">
+                    ₹{type.basePrice}/night • {type.capacity} guests
+                  </span>
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  {typeRooms.length} room{typeRooms.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="pb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {typeRooms.map((room) => (
+                  <button
+                    key={room.id}
+                    onClick={() => setSelectedRoom(room)}
+                    className={cn(
+                      'p-3 rounded-lg border text-left transition-all hover:shadow-md relative',
+                      room.status === 'AVAILABLE' && 'bg-success/5 border-success/30 hover:border-success',
+                      room.status === 'OCCUPIED' && 'bg-destructive/5 border-destructive/30 hover:border-destructive',
+                      room.status === 'CLEANING' && 'bg-warning/5 border-warning/30 hover:border-warning',
+                      room.status === 'MAINTENANCE' && 'bg-muted border-muted-foreground/30'
+                    )}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-lg">{room.number}</span>
+                      <RoomStatusDot status={room.status} size="sm" />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">
+                      {room.status.toLowerCase()}
+                    </p>
+                    {room.currentBooking && (
+                      <div className="mt-2 pt-2 border-t border-current/10">
+                        <p className="text-xs font-medium truncate">
+                          {room.currentBooking.guest.name}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Out: {format(new Date(room.currentBooking.checkOut), 'MMM d')}
+                        </p>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      )}
 
       {/* Room Details Dialog */}
       <Dialog open={!!selectedRoom} onOpenChange={() => setSelectedRoom(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Room {selectedRoom?.number}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              Room {selectedRoom?.number}
+              <StatusBadge status={selectedRoom?.status || 'AVAILABLE'} type="room" size="sm" />
+            </DialogTitle>
             <DialogDescription>
-              {selectedRoom?.type?.name}
+              {selectedRoom?.type?.name} • Up to {selectedRoom?.type?.capacity} guests
             </DialogDescription>
           </DialogHeader>
 
           {selectedRoom && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Current Status</span>
-                <StatusBadge status={selectedRoom.status} type="room" />
-              </div>
+              {/* Current Guest */}
+              {selectedRoom.currentBooking && (
+                <div className="p-3 rounded-lg bg-muted/50">
+                  <p className="text-xs text-muted-foreground mb-1">Current Guest</p>
+                  <p className="font-medium">{selectedRoom.currentBooking.guest.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedRoom.currentBooking.guest.phone}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Checkout: {format(new Date(selectedRoom.currentBooking.checkOut), 'EEE, MMM d')}
+                  </p>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="mt-2 w-full"
+                    onClick={() => {
+                      navigate(`/admin/bookings/${selectedRoom.currentBooking?.id}`);
+                      setSelectedRoom(null);
+                    }}
+                  >
+                    View Booking
+                  </Button>
+                </div>
+              )}
 
-              <div className="border-t pt-4">
-                <h4 className="font-semibold mb-3">Update Status</h4>
+              {/* Status Actions */}
+              <div>
+                <p className="text-sm font-medium mb-2">Update Status</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {selectedRoom.status !== 'AVAILABLE' && (
+                  {selectedRoom.status !== 'AVAILABLE' && selectedRoom.status !== 'OCCUPIED' && (
                     <Button
                       variant="outline"
+                      size="sm"
                       onClick={() => updateRoomStatus(selectedRoom.id, 'AVAILABLE')}
                       disabled={actionLoading}
                       className="border-success text-success hover:bg-success/10"
@@ -198,6 +333,7 @@ export default function AdminRooms() {
                   {selectedRoom.status !== 'CLEANING' && selectedRoom.status !== 'OCCUPIED' && (
                     <Button
                       variant="outline"
+                      size="sm"
                       onClick={() => updateRoomStatus(selectedRoom.id, 'CLEANING')}
                       disabled={actionLoading}
                       className="border-warning text-warning hover:bg-warning/10"
@@ -208,6 +344,7 @@ export default function AdminRooms() {
                   {selectedRoom.status !== 'MAINTENANCE' && selectedRoom.status !== 'OCCUPIED' && (
                     <Button
                       variant="outline"
+                      size="sm"
                       onClick={() => updateRoomStatus(selectedRoom.id, 'MAINTENANCE')}
                       disabled={actionLoading}
                     >
@@ -216,25 +353,16 @@ export default function AdminRooms() {
                   )}
                 </div>
                 {selectedRoom.status === 'OCCUPIED' && (
-                  <p className="text-sm text-muted-foreground mt-3">
-                    Room is currently occupied. Status will update after check-out.
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Room status will update after check-out.
                   </p>
                 )}
-              </div>
-
-              <div className="border-t pt-4">
-                <h4 className="font-semibold mb-2">Room Details</h4>
-                <div className="text-sm space-y-1">
-                  <p><span className="text-muted-foreground">Type:</span> {selectedRoom.type?.name}</p>
-                  <p><span className="text-muted-foreground">Capacity:</span> Up to {selectedRoom.type?.capacity} guests</p>
-                  <p><span className="text-muted-foreground">Rate:</span> ₹{selectedRoom.type?.basePrice}/night</p>
-                </div>
               </div>
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSelectedRoom(null)}>
+            <Button variant="outline" onClick={() => setSelectedRoom(null)} className="w-full">
               Close
             </Button>
           </DialogFooter>
