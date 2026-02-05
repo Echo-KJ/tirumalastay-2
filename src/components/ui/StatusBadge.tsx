@@ -16,11 +16,13 @@ const roomStatusConfig: Record<RoomStatus, { label: string; className: string }>
 };
 
 const bookingStatusConfig: Record<BookingStatus, { label: string; className: string }> = {
-  PENDING: { label: 'Pending', className: 'booking-pending' },
+  RESERVED: { label: 'Reserved', className: 'booking-pending' },
   CONFIRMED: { label: 'Confirmed', className: 'booking-confirmed' },
   CHECKED_IN: { label: 'Checked In', className: 'booking-checked-in' },
+  IN_HOUSE: { label: 'In House', className: 'booking-checked-in' },
   CHECKED_OUT: { label: 'Checked Out', className: 'booking-checked-out' },
   CANCELLED: { label: 'Cancelled', className: 'booking-cancelled' },
+  NO_SHOW: { label: 'No Show', className: 'booking-cancelled' },
 };
 
 const paymentStatusConfig: Record<PaymentStatus, { label: string; className: string }> = {

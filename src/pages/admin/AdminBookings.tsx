@@ -324,7 +324,7 @@ export default function AdminBookings() {
                 Check Out
               </Button>
             )}
-            {(selectedBooking?.status === 'PENDING' || selectedBooking?.status === 'CONFIRMED') && (
+            {(selectedBooking?.status === 'RESERVED' || selectedBooking?.status === 'CONFIRMED') && (
               <Button
                 variant="destructive"
                 onClick={() => setCancelDialogOpen(true)}
