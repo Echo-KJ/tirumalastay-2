@@ -102,9 +102,11 @@ export const mockBookings: Booking[] = [
     checkOut: tomorrow,
     guestsCount: 2,
     totalAmount: 2400,
-    status: 'CHECKED_IN',
+    status: 'IN_HOUSE',
     paymentStatus: 'PAID',
     createdAt: new Date(yesterday.getTime() - 86400000),
+    bookingType: 'RESERVATION',
+    dailyRate: 1200,
   },
   {
     id: 'b-2',
@@ -115,9 +117,11 @@ export const mockBookings: Booking[] = [
     checkOut: dayAfter,
     guestsCount: 3,
     totalAmount: 3600,
-    status: 'CHECKED_IN',
+    status: 'IN_HOUSE',
     paymentStatus: 'PAY_AT_HOTEL',
     createdAt: yesterday,
+    bookingType: 'WALK_IN',
+    dailyRate: 1800,
   },
   {
     id: 'b-3',
@@ -128,9 +132,11 @@ export const mockBookings: Booking[] = [
     checkOut: tomorrow,
     guestsCount: 2,
     totalAmount: 3500,
-    status: 'CHECKED_IN',
+    status: 'IN_HOUSE',
     paymentStatus: 'PAID',
     createdAt: yesterday,
+    bookingType: 'RESERVATION',
+    dailyRate: 3500,
   },
   {
     id: 'b-4',
@@ -144,6 +150,8 @@ export const mockBookings: Booking[] = [
     status: 'CONFIRMED',
     paymentStatus: 'PAID',
     createdAt: today,
+    bookingType: 'RESERVATION',
+    dailyRate: 1800,
   },
 ];
 
@@ -162,7 +170,10 @@ export const mockDailyReports: DailyReport[] = [
     totalCheckouts: 2,
     totalRevenueCash: 5400,
     totalRevenueOnline: 8200,
+    totalRevenueCard: 2000,
+    totalRevenueUPI: 3500,
     occupancyRate: 64,
+    outstandingBalance: 3600,
   },
   {
     date: today,
@@ -171,7 +182,10 @@ export const mockDailyReports: DailyReport[] = [
     totalCheckouts: 1,
     totalRevenueCash: 3600,
     totalRevenueOnline: 5300,
+    totalRevenueCard: 1800,
+    totalRevenueUPI: 2200,
     occupancyRate: 55,
+    outstandingBalance: 3600,
   },
 ];
 

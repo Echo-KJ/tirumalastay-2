@@ -22,6 +22,10 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminBookings from "./pages/admin/AdminBookings";
 import AdminRooms from "./pages/admin/AdminRooms";
 import AdminReports from "./pages/admin/AdminReports";
+import FrontDesk from "./pages/admin/FrontDesk";
+import BookingDetail from "./pages/admin/BookingDetail";
+import NewBooking from "./pages/admin/NewBooking";
+import AuditLog from "./pages/admin/AuditLog";
 
 const queryClient = new QueryClient();
 
@@ -52,10 +56,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             >
-              <Route index element={<AdminDashboard />} />
+              <Route index element={<FrontDesk />} />
+              <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="bookings" element={<AdminBookings />} />
+              <Route path="bookings/new" element={<NewBooking />} />
+              <Route path="bookings/:id" element={<BookingDetail />} />
               <Route path="rooms" element={<AdminRooms />} />
               <Route path="reports" element={<AdminReports />} />
+              <Route path="audit" element={<AuditLog />} />
             </Route>
 
             {/* Catch-all */}

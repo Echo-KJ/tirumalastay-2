@@ -196,9 +196,11 @@ export const bookingsApi = {
       checkOut: data.checkOut,
       guestsCount: data.guestsCount,
       totalAmount,
-      status: data.paymentMethod === 'PAY_AT_HOTEL' ? 'CONFIRMED' : 'PENDING',
+      status: data.paymentMethod === 'PAY_AT_HOTEL' ? 'CONFIRMED' : 'RESERVED',
       paymentStatus: data.paymentMethod === 'PAY_AT_HOTEL' ? 'PAY_AT_HOTEL' : 'PENDING',
       createdAt: new Date(),
+      bookingType: 'RESERVATION',
+      dailyRate: roomType.basePrice,
     };
     bookings.push(newBooking);
 
@@ -331,6 +333,23 @@ export const dashboardApi = {
       totalRooms,
       todayRevenueCash,
       todayRevenueOnline,
+      todayRevenueUPI: 0,
+      todayRevenueCard: 0,
+      inHouseGuests: allBookings.filter(b => b.status === 'IN_HOUSE' || b.status === 'CHECKED_IN'),
+      pendingArrivals: allBookings.filter(b => {
+        const checkIn = new Date(b.checkIn);
+        checkIn.setHours(0, 0, 0, 0);
+        return checkIn < today && (b.status === 'CONFIRMED' || b.status === 'RESERVED');
+      }),
+      overdueCheckouts: allBookings.filter(b => {
+        const checkOut = new Date(b.checkOut);
+        checkOut.setHours(0, 0, 0, 0);
+        return checkOut < today && (b.status === 'IN_HOUSE' || b.status === 'CHECKED_IN');
+      }),
+      unpaidCount: allBookings.filter(b => b.paymentStatus === 'PAY_AT_HOTEL' || b.paymentStatus === 'PENDING').length,
+      unpaidAmount: allBookings
+        .filter(b => b.paymentStatus === 'PAY_AT_HOTEL' || b.paymentStatus === 'PENDING')
+        .reduce((sum, b) => sum + b.totalAmount, 0),
       recentBookings: allBookings.slice(0, 5),
     };
   },
